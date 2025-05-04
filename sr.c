@@ -26,7 +26,7 @@
 #define RTT 16.0      /* round trip time.  MUST BE SET TO 16.0 when submitting assignment */
 #define WINDOWSIZE 6  /* the maximum number of buffered unacked packet \
                         MUST BE SET TO 6 when submitting assignment */
-#define SEQSPACE 7    /* the min sequence space for GBN must be at least windowsize + 1 */
+#define SEQSPACE (2*WINDOWSIZE)    /* the min sequence space for SR must be at least windowsize * 2 */
 #define NOTINUSE (-1) /* used to fill header fields that are not being used */
 
 /* generic procedure to compute the checksum of a packet.  Used by both sender and receiver
@@ -322,13 +322,18 @@ void B_input(struct pkt packet)
       /*keep receivelast */
       receivelast = receivelast > index ? receivelast : index;
 
+      /* Flag to track if we should deliver to application layer */
+      int should_deliver = 0;
+      
       /*if not duplicate, save to buffer*/
-
       if (strcmp(B_buffer[index].payload, packet.payload) != 0)
       {
         /*buffer it*/
         packet.acknum = packet.seqnum;
         B_buffer[index] = packet;
+        /* Mark for delivery since it's not a duplicate */
+        should_deliver = 1;
+        
         /*if it is the base*/
         if (packet.seqnum == seqfirst)
         {
@@ -348,8 +353,10 @@ void B_input(struct pkt packet)
               B_buffer[i] = B_buffer[i + pckcount];
           }
         }
-        /* deliver to receiving application */
-        tolayer5(B, packet.payload);
+        
+        /* Only deliver to application layer if not a duplicate */
+        if (should_deliver)
+          tolayer5(B, packet.payload);
       }
     }
   }
