@@ -1,2 +1,6 @@
 gbn
 sr
+emulator.h
+emulator.c
+gbn.c
+gbn.h
