@@ -58,11 +58,59 @@ bool IsCorrupted(struct pkt packet)
 
 static struct pkt buffer[WINDOWSIZE]; /* array for storing packets waiting for ACK */
 static int windowcount;               /* the number of packets currently awaiting an ACK */
+static int A_baseseqnum;              /* the first sequece number in sender's window */
 static int A_nextseqnum;              /* the next sequence number to be used by the sender */
 
 /* called from layer 5 (application layer), passed the message to be sent to other side */
 void A_output(struct msg message)
 {
+  struct pkt sendpkt;
+  int i;
+  int index;
+  int seqfirst = A_baseseqnum;
+  int seqlast = (A_baseseqnum + WINDOWSIZE - 1) % SEQSPACE;
+
+  /* if the A_nextseqnum is inside the window */
+  if (((seqfirst <= seqlast) && (A_nextseqnum >= seqfirst && A_nextseqnum <= seqlast)) ||
+      ((seqfirst > seqlast) && (A_nextseqnum >= seqfirst || A_nextseqnum <= seqlast)))
+  {
+    if (TRACE > 1)
+      printf("----A: New message arrives, send window is not full, send new messge to layer3!\n");
+
+    /* create packet */
+    sendpkt.seqnum = A_nextseqnum;
+    sendpkt.acknum = NOTINUSE;
+    for (i = 0; i < 20; i++)
+      sendpkt.payload[i] = message.data[i];
+    sendpkt.checksum = ComputeChecksum(sendpkt);
+
+    /* put packet in window buffer */
+    if (A_nextseqnum >= seqfirst)
+      index = A_nextseqnum - seqfirst;
+    else
+      index = WINDOWSIZE - seqfirst + A_nextseqnum;
+    buffer[index] = sendpkt;
+    windowcount++;
+
+    /* send out packet */
+    if (TRACE > 0)
+      printf("Sending packet %d to layer 3\n", sendpkt.seqnum);
+    tolayer3(A, sendpkt);
+
+    /* start timer if first packet in window */
+    if (A_nextseqnum == seqfirst)
+      starttimer(A, RTT);
+
+    /* get next sequence number, wrap back to 0 */
+    A_nextseqnum = (A_nextseqnum + 1) % SEQSPACE;
+  }
+  /* if blocked, window is full */
+  else
+  {
+    if (TRACE > 0)
+      printf("----A: New message arrives, send window is full\n");
+    window_full++;
+  }
 }
 
 /* called from layer 3, when a packet arrives for layer 4
@@ -79,8 +127,12 @@ void A_timerinterrupt(void)
 
 /* the following routine will be called once (only) before any other */
 /* entity A routines are called. You can use it to do any initialization */
+// Initialize sender A's state variables
 void A_init(void)
 {
+  A_baseseqnum = 0;
+  A_nextseqnum = 0; /* A starts with seq num 0, do not change this */
+  windowcount = 0;
 }
 
 /********* Receiver (B)  variables and procedures ************/
