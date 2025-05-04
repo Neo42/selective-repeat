@@ -50,9 +50,9 @@ int ComputeChecksum(struct pkt packet)
 bool IsCorrupted(struct pkt packet)
 {
   if (packet.checksum == ComputeChecksum(packet))
-    return (false);
+    return -1;
   else
-    return (true);
+    return 0;
 }
 
 /********* Sender (A) variables and functions ************/
