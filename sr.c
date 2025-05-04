@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 #include "emulator.h"
 #include "sr.h"
 
@@ -152,7 +153,7 @@ void A_input(struct pkt packet)
   int seqlast;
   int index;
   /* if received ACK is not corrupted */
-  if (IsCorrupted(packet) == -1)
+  if (!IsCorrupted(packet))
   {
     if (TRACE > 0)
       printf("----A: uncorrupted ACK %d is received\n", packet.acknum);
@@ -243,7 +244,7 @@ void A_timerinterrupt(void)
 
 /* the following routine will be called once (only) before any other */
 /* entity A routines are called. You can use it to do any initialization */
-// Initialize sender A's state variables
+/* Initialize sender A's state variables */
 void A_init(void)
 {
   A_baseseqnum = 0;
@@ -288,7 +289,7 @@ void B_input(struct pkt packet)
   int seqlast;
   int index;
   /* if received packet is not corrupted */
-  if (IsCorrupted(packet) == -1)
+  if (!IsCorrupted(packet))
   {
     if (TRACE > 0)
       printf("----B: packet %d is correctly received, send ACK!\n", packet.seqnum);
