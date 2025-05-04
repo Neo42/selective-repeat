@@ -322,18 +322,13 @@ void B_input(struct pkt packet)
       /*keep receivelast */
       receivelast = receivelast > index ? receivelast : index;
 
-      /* Flag to track if we should deliver to application layer */
-      int should_deliver = 0;
-      
       /*if not duplicate, save to buffer*/
+
       if (strcmp(B_buffer[index].payload, packet.payload) != 0)
       {
         /*buffer it*/
         packet.acknum = packet.seqnum;
         B_buffer[index] = packet;
-        /* Mark for delivery since it's not a duplicate */
-        should_deliver = 1;
-        
         /*if it is the base*/
         if (packet.seqnum == seqfirst)
         {
@@ -353,10 +348,8 @@ void B_input(struct pkt packet)
               B_buffer[i] = B_buffer[i + pckcount];
           }
         }
-        
-        /* Only deliver to application layer if not a duplicate */
-        if (should_deliver)
-          tolayer5(B, packet.payload);
+        /* deliver to receiving application */
+        tolayer5(B, packet.payload);
       }
     }
   }
