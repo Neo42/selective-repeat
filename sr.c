@@ -253,15 +253,114 @@ void A_init(void)
 
 /********* Receiver (B)  variables and procedures ************/
 
+static struct pkt B_buffer[WINDOWSIZE]; /* array for storing packets waiting for packet from A */
+static int B_baseseqnum;                /* first sequence number of the receiver's window */
+static int receivelast;                 /* record the last packet received position */
+
 /* called from layer 3, when a packet arrives for layer 4 at B*/
+/* B_input: Handles data packets received from sender A
+ *
+ * This function implements receiver-side selective repeat protocol logic:
+ * 1. Verifies packet integrity using checksum
+ * 2. For valid packets:
+ *    - Immediately generates and sends ACK with matching sequence number
+ *    - Determines if packet falls within current receive window
+ *    - For in-window packets:
+ *      > Calculates appropriate buffer position
+ *      > Tracks the furthest received packet position
+ *      > Checks for and handles duplicate packets
+ *      > For packets at window base:
+ *        - Counts consecutive received packets
+ *        - Slides window forward accordingly
+ *        - Updates buffer by shifting packets
+ *      > Delivers valid packet data to application layer
+ * 3. Properly handles sequence number wraparound in window calculations
+ *
+ * The implementation follows selective repeat by accepting out-of-order
+ * packets while still maintaining ordered delivery to the application.
+ */
 void B_input(struct pkt packet)
 {
+  int pckcount = 0;
+  struct pkt sendpkt;
+  int i;
+  int seqfirst;
+  int seqlast;
+  int index;
+  /* if received packet is not corrupted */
+  if (IsCorrupted(packet) == -1)
+  {
+    if (TRACE > 0)
+      printf("----B: packet %d is correctly received, send ACK!\n", packet.seqnum);
+    packets_received++;
+    /*create sendpkt*/
+    /* send an ACK for the received packet */
+    sendpkt.acknum = packet.seqnum;
+    sendpkt.seqnum = NOTINUSE;
+    /* we don't have any data to send.  fill payload with 0's */
+    for (i = 0; i < 20; i++)
+      sendpkt.payload[i] = '0';
+    /* computer checksum */
+    sendpkt.checksum = ComputeChecksum(sendpkt);
+    /*send ack*/
+    tolayer3(B, sendpkt);
+    /* need to check if new packet or duplicate */
+    seqfirst = B_baseseqnum;
+    seqlast = (B_baseseqnum + WINDOWSIZE - 1) % SEQSPACE;
+
+    /*see if the packet received is inside the window*/
+    if (((seqfirst <= seqlast) && (packet.seqnum >= seqfirst && packet.seqnum <= seqlast)) ||
+        ((seqfirst > seqlast) && (packet.seqnum >= seqfirst || packet.seqnum <= seqlast)))
+    {
+
+      /*get index*/
+      if (packet.seqnum >= seqfirst)
+        index = packet.seqnum - seqfirst;
+      else
+        index = WINDOWSIZE - seqfirst + packet.seqnum;
+      /*keep receivelast */
+      receivelast = receivelast > index ? receivelast : index;
+
+      /*if not duplicate, save to buffer*/
+
+      if (strcmp(B_buffer[index].payload, packet.payload) != 0)
+      {
+        /*buffer it*/
+        packet.acknum = packet.seqnum;
+        B_buffer[index] = packet;
+        /*if it is the base*/
+        if (packet.seqnum == seqfirst)
+        {
+          for (i = 0; i < WINDOWSIZE; i++)
+          {
+            if (B_buffer[i].acknum >= 0 && strcmp(B_buffer[i].payload, "") != 0)
+              pckcount++;
+            else
+              break;
+          }
+          /* update state variables */
+          B_baseseqnum = (B_baseseqnum + pckcount) % SEQSPACE;
+          /*update buffer*/
+          for (i = 0; i < WINDOWSIZE; i++)
+          {
+            if ((i + pckcount) <= (receivelast + 1))
+              B_buffer[i] = B_buffer[i + pckcount];
+          }
+        }
+        /* deliver to receiving application */
+        tolayer5(B, packet.payload);
+      }
+    }
+  }
 }
 
 /* the following routine will be called once (only) before any other */
 /* entity B routines are called. You can use it to do any initialization */
 void B_init(void)
 {
+  /* initialise B's window, buffer and sequence number */
+  B_baseseqnum = 0; /*record the first seq num of the window*/
+  receivelast = -1;
 }
 
 /******************************************************************************
