@@ -23,11 +23,11 @@
    - added GBN implementation
 **********************************************************************/
 
-#define RTT 16.0      /* round trip time.  MUST BE SET TO 16.0 when submitting assignment */
-#define WINDOWSIZE 6  /* the maximum number of buffered unacked packet \
-                        MUST BE SET TO 6 when submitting assignment */
-#define SEQSPACE (2*WINDOWSIZE)    /* the min sequence space for SR must be at least windowsize * 2 */
-#define NOTINUSE (-1) /* used to fill header fields that are not being used */
+#define RTT 16.0                  /* round trip time.  MUST BE SET TO 16.0 when submitting assignment */
+#define WINDOWSIZE 6              /* the maximum number of buffered unacked packet \
+                                    MUST BE SET TO 6 when submitting assignment */
+#define SEQSPACE (2 * WINDOWSIZE) /* the min sequence space for SR must be at least windowsize * 2 */
+#define NOTINUSE (-1)             /* used to fill header fields that are not being used */
 
 /* generic procedure to compute the checksum of a packet.  Used by both sender and receiver
    the simulator will overwrite part of your packet with 'z's.  It will not overwrite your
@@ -47,7 +47,7 @@ int ComputeChecksum(struct pkt packet)
   return checksum;
 }
 
-bool IsCorrupted(struct pkt packet)
+int IsCorrupted(struct pkt packet)
 {
   if (packet.checksum == ComputeChecksum(packet))
     return -1;
@@ -153,7 +153,7 @@ void A_input(struct pkt packet)
   int seqlast;
   int index;
   /* if received ACK is not corrupted */
-  if (!IsCorrupted(packet))
+  if (IsCorrupted(packet) == -1)
   {
     if (TRACE > 0)
       printf("----A: uncorrupted ACK %d is received\n", packet.acknum);
@@ -289,7 +289,7 @@ void B_input(struct pkt packet)
   int seqlast;
   int index;
   /* if received packet is not corrupted */
-  if (!IsCorrupted(packet))
+  if (IsCorrupted(packet) == -1)
   {
     if (TRACE > 0)
       printf("----B: packet %d is correctly received, send ACK!\n", packet.seqnum);
